@@ -75,13 +75,13 @@ for i, level in enumerate(plot_levels):
 
 # Labels and formatting
 ax1.tick_params(axis="both", which="major")
-ax1.set_xlabel(r"$x/a$")
-ax1.set_ylabel(r"$ap/F$")
+ax1.set_xlabel(r"$x\,/\,a$")
+ax1.set_ylabel(r"$a\,p\,/\,F$")
 
 ax2.yaxis.set_major_formatter(FormatStrFormatter("%.e"))
 ax2.tick_params(axis='both', which='major')
-ax2.set_xlabel(r'$x/a$')
-ax2.set_ylabel(r'$u_x/a$')
+ax2.set_xlabel(r'$x\,/\,a$')
+ax2.set_ylabel(r'$u_x\,/\,a$')
 
 ax3.legend(loc="center left", frameon=False)
 ax3.axis("off")
