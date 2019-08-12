@@ -479,12 +479,12 @@ data[pp.PRIMARY_VARIABLES] = {v_0: {"cells": g.dim}, v_1: {"cells": 1}}
 data[pp.DISCRETIZATION] = {
     v_0: {term_00: pp.Mpsa(kw_m)},
     v_1: {
-        term_11_0: ImplicitMassMatrix(kw_f, v_1),
+        term_11_0: ImplicitMassMatrix(kw_f, variable_f),
         term_11_1: ImplicitMpfa(kw_f),
         term_11_2: pp.BiotStabilization(kw_f, v_1),
     },
     v_0 + "_" + v_1: {term_01: pp.GradP(kw_m)},
-    v_1 + "_" + v_0: {term_10: pp.DivD(kw_m, v_0)},
+    v_1 + "_" + v_0: {term_10: pp.DivU(kw_m, kw_f, v_0)},
 }
 
 # %% Solving the linear system
@@ -515,8 +515,8 @@ for t in range(len(time_values)-1):
 
     # Distribute primary variables
     assembler.distribute_variable(x)
-    displacement = data[variable_m]
-    pressure = data[variable_f]
+    displacement = data[pp.STATE][variable_m]
+    pressure = data[pp.STATE][variable_f]
 
     # Save in solution dictionary
     sol["pressure"][t+1] = pressure
