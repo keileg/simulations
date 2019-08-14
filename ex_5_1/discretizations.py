@@ -13,7 +13,6 @@ import scipy.sparse as sps
 import porepy.ad as ad
 
 
-
 class ViscousFlow(object):
     """
     Class for discretizing the operators needed to formulate the viscous flow
@@ -46,26 +45,25 @@ class ViscousFlow(object):
         assembler = pp.Assembler(gb)
 
         # Fluid flow. Darcy + mass conservation
-        flux = assembler.assemble_operator(flow_kw, 'flux')
-        bound_flux = assembler.assemble_operator(flow_kw, 'bound_flux')
-        trace_cell = assembler.assemble_operator(flow_kw, 'bound_pressure_cell')
-        trace_face = assembler.assemble_operator(flow_kw, 'bound_pressure_face')
-        div = assembler.assemble_operator(flow_kw, 'div')
-
+        flux = assembler.assemble_operator(flow_kw, "flux")
+        bound_flux = assembler.assemble_operator(flow_kw, "bound_flux")
+        trace_cell = assembler.assemble_operator(flow_kw, "bound_pressure_cell")
+        trace_face = assembler.assemble_operator(flow_kw, "bound_pressure_face")
+        div = assembler.assemble_operator(flow_kw, "div")
 
         # Assemble discrete parameters and geometric values
-        bc_val = assembler.assemble_parameter(flow_kw, 'bc_values')
-        kn = [d[pp.PARAMETERS][flow_kw]['normal_diffusivity'] for _, d in gb.edges()]
+        bc_val = assembler.assemble_parameter(flow_kw, "bc_values")
+        kn = [d[pp.PARAMETERS][flow_kw]["normal_diffusivity"] for _, d in gb.edges()]
         kn = np.hstack(kn)
 
         self.mat[flow_kw] = {
-            'flux': flux,
-            'bound_flux': bound_flux,
-            'trace_cell': trace_cell,
-            'trace_face': trace_face,
-            'bc_values': bc_val,
-            'kn': kn,
-            }
+            "flux": flux,
+            "bound_flux": bound_flux,
+            "trace_cell": trace_cell,
+            "trace_face": trace_face,
+            "bc_values": bc_val,
+            "kn": kn,
+        }
 
     def discretize_transport(self):
         """
@@ -80,40 +78,42 @@ class ViscousFlow(object):
         assembler = pp.Assembler(gb)
 
         # Transport. Upwind + mass conservation
-        diff = assembler.assemble_operator(transport_kw, 'flux')
-        bound_diff = assembler.assemble_operator(transport_kw, 'bound_flux')
-        trace_cell = assembler.assemble_operator(transport_kw, 'bound_pressure_cell')
-        trace_face = assembler.assemble_operator(transport_kw, 'bound_pressure_face')
+        diff = assembler.assemble_operator(transport_kw, "flux")
+        bound_diff = assembler.assemble_operator(transport_kw, "bound_flux")
+        trace_cell = assembler.assemble_operator(transport_kw, "bound_pressure_cell")
+        trace_face = assembler.assemble_operator(transport_kw, "bound_pressure_face")
 
-        pos_cells = assembler.assemble_operator(transport_kw, 'pos_cells')
-        neg_cells = assembler.assemble_operator(transport_kw, 'neg_cells')
+        pos_cells = assembler.assemble_operator(transport_kw, "pos_cells")
+        neg_cells = assembler.assemble_operator(transport_kw, "neg_cells")
 
         # Finite volume divergence operator
-        div = assembler.assemble_operator(transport_kw, 'div')
+        div = assembler.assemble_operator(transport_kw, "div")
 
         # Assemble discrete parameters and geometric values
-        bc_val = assembler.assemble_parameter(transport_kw, 'bc_values')
-        bc_sgn = assembler.assemble_parameter(transport_kw, 'bc_sgn')
-        frac_bc = assembler.assemble_parameter(transport_kw, 'frac_bc')
+        bc_val = assembler.assemble_parameter(transport_kw, "bc_values")
+        bc_sgn = assembler.assemble_parameter(transport_kw, "bc_sgn")
+        frac_bc = assembler.assemble_parameter(transport_kw, "frac_bc")
 
-        mass_weight = assembler.assemble_parameter(transport_kw, 'mass_weight')
-        dn = [d[pp.PARAMETERS][transport_kw]['normal_diffusivity'] for _, d in gb.edges()]
+        mass_weight = assembler.assemble_parameter(transport_kw, "mass_weight")
+        dn = [
+            d[pp.PARAMETERS][transport_kw]["normal_diffusivity"] for _, d in gb.edges()
+        ]
         dn = np.hstack(dn)
 
         # Store  discretizations
         self.mat[transport_kw] = {
-            'flux': diff,
-            'bound_flux': bound_diff,
-            'trace_cell': trace_cell,
-            'trace_face': trace_face,
-            'bc_values': bc_val,
-            'pos_cells': pos_cells,
-            'neg_cells': neg_cells,
-            'bc_sgn': bc_sgn,
-            'frac_bc': frac_bc,
-            'dn': dn,
-            'mass_weight': mass_weight,
-            }
+            "flux": diff,
+            "bound_flux": bound_diff,
+            "trace_cell": trace_cell,
+            "trace_face": trace_face,
+            "bc_values": bc_val,
+            "pos_cells": pos_cells,
+            "neg_cells": neg_cells,
+            "bc_sgn": bc_sgn,
+            "frac_bc": frac_bc,
+            "dn": dn,
+            "mass_weight": mass_weight,
+        }
 
     def upwind(self, c, q):
         """
@@ -126,19 +126,20 @@ class ViscousFlow(object):
             q_flux = q
 
         flag = (q_flux > 0).astype(np.int)
-        bc_flag = (self.mat[kw]['bc_sgn'] * q_flux < 0).astype(np.int)
+        bc_flag = (self.mat[kw]["bc_sgn"] * q_flux < 0).astype(np.int)
         # The coupling flux is added by function mortar_upwind
-        not_frac_flag = ~self.mat[kw]['frac_bc']
+        not_frac_flag = ~self.mat[kw]["frac_bc"]
         pos_flag = sps.diags(flag * not_frac_flag, dtype=np.int)
         neg_flag = sps.diags((1 - flag) * not_frac_flag, dtype=np.int)
 
-        pos_cells = self.mat[kw]['pos_cells']
-        neg_cells = self.mat[kw]['neg_cells']
-        T_upw = (pos_flag * pos_cells  + neg_flag * neg_cells) * c
-        return (T_upw + self.mat[kw]['bc_values'] * bc_flag) * q
+        pos_cells = self.mat[kw]["pos_cells"]
+        neg_cells = self.mat[kw]["neg_cells"]
+        T_upw = (pos_flag * pos_cells + neg_flag * neg_cells) * c
+        return (T_upw + self.mat[kw]["bc_values"] * bc_flag) * q
 
     def mortar_upwind(
-            self, c, lam, div, avg, master2mortar, slave2mortar, mortar2master, mortar2slave):
+        self, c, lam, div, avg, master2mortar, slave2mortar, mortar2master, mortar2slave
+    ):
         """
         Get the upwind weights between dimensions
         """
@@ -154,11 +155,10 @@ class ViscousFlow(object):
         slave_flag = sps.diags(1 - flag_m, dtype=np.int)
 
         # Outflow of master and slave
-#        c.val = np.array([0, 0, 1, 0, 1, 0.5, 0])
         out_master = (avg * c) * (mortar2master * master_flag * lam)
         out_slave = c * (mortar2slave * slave_flag * lam)
         # What flows out of master/slave flows into slave/master
-        inn_slave = mortar2slave * (master2mortar * avg *c * (master_flag * lam))
+        inn_slave = mortar2slave * (master2mortar * avg * c * (master_flag * lam))
         inn_master = mortar2master * (slave2mortar * c * (slave_flag * lam))
 
         upwind_master = np.abs(div) * (out_master + inn_master)
@@ -173,7 +173,7 @@ def elliptic_disc(gb, keyword):
     """
     for g, d in gb:
         pp.Mpfa(keyword).discretize(g, d)
-        d[pp.DISCRETIZATION_MATRICES][keyword]['div'] = pp.fvutils.scalar_divergence(g)
+        d[pp.DISCRETIZATION_MATRICES][keyword]["div"] = pp.fvutils.scalar_divergence(g)
 
 
 def upwind_disc(gb, keyword):
@@ -191,8 +191,8 @@ def upwind_disc(gb, keyword):
         # Get sign of boundary
         bc_sgn = np.zeros(g.num_faces)
         bc_sgn[g.get_boundary_faces()] = _sign_of_boundary_faces(g)
-        d[pp.PARAMETERS][keyword]['bc_sgn'] = bc_sgn
-        d[pp.PARAMETERS][keyword]['frac_bc'] = g.tags['fracture_faces']
+        d[pp.PARAMETERS][keyword]["bc_sgn"] = bc_sgn
+        d[pp.PARAMETERS][keyword]["frac_bc"] = g.tags["fracture_faces"]
 
 
 def mass_matrix(gb, keyword):
@@ -200,8 +200,8 @@ def mass_matrix(gb, keyword):
     Discretize the mass matrix on each graph node
     """
     for g, d in gb:
-        volumes = d[pp.PARAMETERS][keyword]['mass_weight'] * g.cell_volumes
-        d[pp.DISCRETIZATION_MATRICES][keyword]['mass_matrix'] = sps.diags(volumes)
+        volumes = d[pp.PARAMETERS][keyword]["mass_weight"] * g.cell_volumes
+        d[pp.DISCRETIZATION_MATRICES][keyword]["mass_matrix"] = sps.diags(volumes)
 
 
 def mortar_weight(gb, keyword):
@@ -211,11 +211,11 @@ def mortar_weight(gb, keyword):
     for e, d in gb.edges():
         gs, gm = gb.nodes_of_edge(e)
         if gs == gm:
-            W = sps.csc_matrix((d['mortar_grid'].num_cells, d['mortar_grid'].num_cells))
+            W = sps.csc_matrix((d["mortar_grid"].num_cells, d["mortar_grid"].num_cells))
         else:
-            Dn = d[pp.PARAMETERS][keyword]['normal_diffusivity']
-            W = sps.eye(d['mortar_grid'].num_cells) / Dn
-        d[pp.DISCRETIZATION_MATRICES][keyword]['mortar_weight'] = W
+            Dn = d[pp.PARAMETERS][keyword]["normal_diffusivity"]
+            W = sps.eye(d["mortar_grid"].num_cells) / Dn
+        d[pp.DISCRETIZATION_MATRICES][keyword]["mortar_weight"] = W
 
 
 def mortar_projections(gb, keyword):
@@ -224,45 +224,45 @@ def mortar_projections(gb, keyword):
     """
     for e, d in gb.edges():
         gs, gm = gb.nodes_of_edge(e)
-        if gs.dim==gm.dim:
-            d[pp.DISCRETIZATION_MATRICES][keyword]['mortar2slave_face'] = (
-                d['mortar_grid'].mortar_to_slave_avg()
-                )
-            d[pp.DISCRETIZATION_MATRICES][keyword]['mortar2master_face'] = (
-                d['mortar_grid'].mortar_to_master_avg()
-                )
-            d[pp.DISCRETIZATION_MATRICES][keyword]['mortar2slave_cell'] = (
-                sps.csc_matrix((gs.num_cells, d['mortar_grid'].num_cells))
-                )
-            d[pp.DISCRETIZATION_MATRICES][keyword]['mortar2master_cell'] = (
-                sps.csc_matrix((gm.num_cells, d['mortar_grid'].num_cells))
-                )
+        if gs.dim == gm.dim:
+            d[pp.DISCRETIZATION_MATRICES][keyword]["mortar2slave_face"] = d[
+                "mortar_grid"
+            ].mortar_to_slave_avg()
+            d[pp.DISCRETIZATION_MATRICES][keyword]["mortar2master_face"] = d[
+                "mortar_grid"
+            ].mortar_to_master_avg()
+            d[pp.DISCRETIZATION_MATRICES][keyword][
+                "mortar2slave_cell"
+            ] = sps.csc_matrix((gs.num_cells, d["mortar_grid"].num_cells))
+            d[pp.DISCRETIZATION_MATRICES][keyword][
+                "mortar2master_cell"
+            ] = sps.csc_matrix((gm.num_cells, d["mortar_grid"].num_cells))
         elif gs.dim <= gm.dim:
-            d[pp.DISCRETIZATION_MATRICES][keyword]['mortar2slave_face'] = (
-                sps.csc_matrix((gs.num_faces, d['mortar_grid'].num_cells))
-                )
-            d[pp.DISCRETIZATION_MATRICES][keyword]['mortar2master_face'] = (
-                d['mortar_grid'].mortar_to_master_avg()
-                )
-            d[pp.DISCRETIZATION_MATRICES][keyword]['mortar2slave_cell'] = (
-                d['mortar_grid'].mortar_to_slave_avg()
-                )
-            d[pp.DISCRETIZATION_MATRICES][keyword]['mortar2master_cell'] = (
-                sps.csc_matrix((gm.num_cells, d['mortar_grid'].num_cells))
-                )
+            d[pp.DISCRETIZATION_MATRICES][keyword][
+                "mortar2slave_face"
+            ] = sps.csc_matrix((gs.num_faces, d["mortar_grid"].num_cells))
+            d[pp.DISCRETIZATION_MATRICES][keyword]["mortar2master_face"] = d[
+                "mortar_grid"
+            ].mortar_to_master_avg()
+            d[pp.DISCRETIZATION_MATRICES][keyword]["mortar2slave_cell"] = d[
+                "mortar_grid"
+            ].mortar_to_slave_avg()
+            d[pp.DISCRETIZATION_MATRICES][keyword][
+                "mortar2master_cell"
+            ] = sps.csc_matrix((gm.num_cells, d["mortar_grid"].num_cells))
         elif gs.dim >= gm.dim:
-            d[pp.DISCRETIZATION_MATRICES][keyword]['mortar2slave_face'] = (
-                d['mortar_grid'].mortar_to_slave_avg()
-                )
-            d[pp.DISCRETIZATION_MATRICES][keyword]['mortar2master_face'] = (
-                sps.csc_matrix((gm.num_faces, d['mortar_grid'].num_cells))
-                )
-            d[pp.DISCRETIZATION_MATRICES][keyword]['mortar2slave_cell'] = (
-                sps.csc_matrix((gs.num_cells, d['mortar_grid'].num_cells))
-                )
-            d[pp.DISCRETIZATION_MATRICES][keyword]['mortar2master_cell'] = (
-                d['mortar_grid'].mortar_to_master_avg()
-                )
+            d[pp.DISCRETIZATION_MATRICES][keyword]["mortar2slave_face"] = d[
+                "mortar_grid"
+            ].mortar_to_slave_avg()
+            d[pp.DISCRETIZATION_MATRICES][keyword][
+                "mortar2master_face"
+            ] = sps.csc_matrix((gm.num_faces, d["mortar_grid"].num_cells))
+            d[pp.DISCRETIZATION_MATRICES][keyword][
+                "mortar2slave_cell"
+            ] = sps.csc_matrix((gs.num_cells, d["mortar_grid"].num_cells))
+            d[pp.DISCRETIZATION_MATRICES][keyword]["mortar2master_cell"] = d[
+                "mortar_grid"
+            ].mortar_to_master_avg()
 
 
 def _sign_of_boundary_faces(g):

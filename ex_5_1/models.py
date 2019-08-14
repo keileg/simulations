@@ -14,6 +14,7 @@ import time
 import projection
 import viz
 
+
 def viscous_flow(disc, data, time_step_param):
     """
     Solve the coupled problem of fluid flow and temperature transport, where the
@@ -45,83 +46,83 @@ def viscous_flow(disc, data, time_step_param):
 
     # define shorthand notation for discretizations
     # Flow
-    flux = disc.mat[flow_kw]['flux']
-    bound_flux = disc.mat[flow_kw]['bound_flux']
-    trace_p_cell = disc.mat[flow_kw]['trace_cell']
-    trace_p_face = disc.mat[flow_kw]['trace_face']
-    bc_val_p = disc.mat[flow_kw]['bc_values']
-    kn = disc.mat[flow_kw]['kn']
+    flux = disc.mat[flow_kw]["flux"]
+    bound_flux = disc.mat[flow_kw]["bound_flux"]
+    trace_p_cell = disc.mat[flow_kw]["trace_cell"]
+    trace_p_face = disc.mat[flow_kw]["trace_face"]
+    bc_val_p = disc.mat[flow_kw]["bc_values"]
+    kn = disc.mat[flow_kw]["kn"]
     mu = data.viscosity
 
     # Transport
-    diff = disc.mat[tran_kw]['flux']
-    bound_diff = disc.mat[tran_kw]['bound_flux']
-    trace_c_cell = disc.mat[tran_kw]['trace_cell']
-    trace_c_face = disc.mat[tran_kw]['trace_face']
-    bc_val_c = disc.mat[tran_kw]['bc_values']
-    Dn = disc.mat[tran_kw]['dn']
+    diff = disc.mat[tran_kw]["flux"]
+    bound_diff = disc.mat[tran_kw]["bound_flux"]
+    trace_c_cell = disc.mat[tran_kw]["trace_cell"]
+    trace_c_face = disc.mat[tran_kw]["trace_face"]
+    bc_val_c = disc.mat[tran_kw]["bc_values"]
+    Dn = disc.mat[tran_kw]["dn"]
 
     # Define projections between grids
-    master2mortar, slave2mortar, mortar2master, mortar2slave = (
-        projection.mixed_dim_projections(gb)
+    master2mortar, slave2mortar, mortar2master, mortar2slave = projection.mixed_dim_projections(
+        gb
     )
     # And between cells and faces
     avg = projection.cells2faces_avg(gb)
     div = projection.faces2cells(gb)
 
     # Assemble geometric values
-    mass_weight = disc.mat[tran_kw]['mass_weight']
+    mass_weight = disc.mat[tran_kw]["mass_weight"]
     cell_volumes = gb.cell_volumes() * mass_weight
-    # mortar_volumes = gb.cell_volumes_mortar()
+    mortar_volumes = gb.cell_volumes_mortar()
     # mortar_area = mortar_volumes * (master2mortar * avg * specific_volume)
 
     # Define secondary variables:
-    q_func  = lambda p, c, lam: (
-        (flux * p + bound_flux * bc_val_p) * (mu(avg * c))**-1 + bound_flux * mortar2master * lam
-        )
-    trace_p = lambda p, lam: trace_p_cell * p + trace_p_face * (lam + bc_val_p) 
-    trace_c = lambda c, lam_c: trace_c_cell * c + trace_c_face * (lam_c + bc_val_c) 
+    q_func = lambda p, c, lam: (
+        (flux * p + bound_flux * bc_val_p) * (mu(avg * c)) ** -1
+        + bound_flux * mortar2master * lam
+    )
+    trace_p = lambda p, lam: trace_p_cell * p + trace_p_face * (lam + bc_val_p)
+    trace_c = lambda c, lam_c: trace_c_cell * c + trace_c_face * (lam_c + bc_val_c)
 
     # Define discrete equations
     # Flow, conservation
-    mass_conservation = lambda p, lam, q: (
-        div * q - mortar2slave * lam
-    )
+    mass_conservation = lambda p, lam, q: (div * q - mortar2slave * lam)
     # Flow, coupling law
     coupling_law = lambda p, lam, c: (
-        lam / kn +
-        (slave2mortar * p - master2mortar * trace_p(p, mortar2master * lam)) /
-        mu((slave2mortar * c + master2mortar * avg * c) / 2)
+        lam / kn / mortar_volumes
+        + (slave2mortar * p - master2mortar * trace_p(p, mortar2master * lam))
+        / mu((slave2mortar * c + master2mortar * avg * c) / 2)
     )
 
     # Transport
     # Define upwind and diffusive discretizations
     upwind = lambda c, lam, q: (
-        div * disc.upwind(c, q) +
-        disc.mortar_upwind(
-            c, lam, div, avg, master2mortar, slave2mortar, mortar2master, mortar2slave)
+        div * disc.upwind(c, q)
+        + disc.mortar_upwind(
+            c, lam, div, avg, master2mortar, slave2mortar, mortar2master, mortar2slave
         )
+    )
 
     diffusive = lambda c, lam_c: (
         div * (diff * c + bound_diff * (mortar2master * lam_c + bc_val_c))
         - mortar2slave * lam_c
     )
     # Diffusive copuling law
-    coupling_law_c = lambda c, lam_c:(
-        lam_c / Dn +
-        slave2mortar * c - master2mortar * trace_c(c, mortar2master * lam_c)
+    coupling_law_c = lambda c, lam_c: (
+        lam_c / Dn / mortar_volumes
+        + slave2mortar * c
+        - master2mortar * trace_c(c, mortar2master * lam_c)
     )
     # Tranpsort, conservation equation
     theta = 0.5
     transport = lambda lam, lam0, c, c0, lam_c, lam_c0, q, q0: (
-        (c - c0) * (cell_volumes / dt) +
-        theta * (upwind(c, lam, q) + diffusive(c, lam_c)) +
-        (1 - theta) * (upwind(c0, lam0, q0)  + (1 - theta) *  diffusive(c0, lam_c0))
+        (c - c0) * (cell_volumes / dt)
+        + theta * (upwind(c, lam, q) + diffusive(c, lam_c))
+        + (1 - theta) * (upwind(c0, lam0, q0) + (1 - theta) * diffusive(c0, lam_c0))
     )
 
-
     # Define ad variables
-    print('Solve for initial condition')
+    print("Solve for initial condition")
     # We solve for inital pressure and mortar flux by fixing the temperature
     # to the initial value.
     c0 = np.zeros(gb.num_cells())
@@ -130,14 +131,15 @@ def viscous_flow(disc, data, time_step_param):
     p0_init = np.zeros(gb.num_cells())
     lam0_init = np.zeros(gb.num_mortar_cells())
     # Define Ad variables and set up equations
-    p0, lam0= ad.initAdArrays([p0_init, lam0_init])
-    eq_init = ad.concatenate((mass_conservation(p0, lam0, q_func(p0, c0, lam0)),
-                              coupling_law(p0, lam0, c0)))
+    p0, lam0 = ad.initAdArrays([p0_init, lam0_init])
+    eq_init = ad.concatenate(
+        (mass_conservation(p0, lam0, q_func(p0, c0, lam0)), coupling_law(p0, lam0, c0))
+    )
     # As the temperature is fixed, the system is linear, thus Newton's method converges
     # in one iteration
     sol_init = -sps.linalg.spsolve(eq_init.jac, eq_init.val)
-    p0 = sol_init[:gb.num_cells()]
-    lam0 = sol_init[gb.num_cells():]
+    p0 = sol_init[: gb.num_cells()]
+    lam0 = sol_init[gb.num_cells() :]
 
     # Now that we have solved for initial condition, initalize full problem
     p, lam, c, lam_c = ad.initAdArrays([p0, lam0, c0, lam_c0])
@@ -149,26 +151,28 @@ def viscous_flow(disc, data, time_step_param):
     lam_ix = slice(gb.num_cells(), gb.num_cells() + gb.num_mortar_cells())
     c_ix = slice(
         gb.num_cells() + gb.num_mortar_cells(),
-        2*gb.num_cells() + gb.num_mortar_cells(),
-        )
+        2 * gb.num_cells() + gb.num_mortar_cells(),
+    )
     lam_c_ix = slice(
-        2*gb.num_cells() + gb.num_mortar_cells(),
-        2*gb.num_cells() + 2 * gb.num_mortar_cells()
+        2 * gb.num_cells() + gb.num_mortar_cells(),
+        2 * gb.num_cells() + 2 * gb.num_mortar_cells(),
     )
     # solve system
     dt = time_step_param["dt"]
     t = 0
     k = 0
-    exporter = pp.Exporter(gb, time_step_param['file_name'], time_step_param['folder_name'])
+    exporter = pp.Exporter(
+        gb, time_step_param["file_name"], time_step_param["folder_name"]
+    )
     # Export initial condition
-    viz.split_variables(gb, [p.val, c.val], ['pressure', 'concentration'])
-    exporter.write_vtk(['pressure', 'concentration'], time_step=k)
+    viz.split_variables(gb, [p.val, c.val], ["pressure", "concentration"])
+    exporter.write_vtk(["pressure", "concentration"], time_step=k)
     times = [0]
 
     while t <= time_step_param["end_time"]:
-        t+=dt
-        k+=1
-        print('Solving time step: ', k,' dt: ', dt, ' Time: ', t)
+        t += dt
+        k += 1
+        print("Solving time step: ", k, " dt: ", dt, " Time: ", t)
         p0 = p.val
         lam0 = lam.val
         c0 = c.val
@@ -177,8 +181,8 @@ def viscous_flow(disc, data, time_step_param):
         err = np.inf
         newton_it = 0
         sol0 = sol.copy()
-        while err>1e-9:
-            newton_it +=1
+        while err > 1e-9:
+            newton_it += 1
             q = q_func(p, c, lam)
             equation = ad.concatenate(
                 (
@@ -191,14 +195,13 @@ def viscous_flow(disc, data, time_step_param):
             err = np.max(np.abs(equation.val))
             if err < 1e-9:
                 break
-            print('newton iteration number: ', newton_it - 1, '. Error: ', err)
+            print("newton iteration number: ", newton_it - 1, ". Error: ", err)
             sol = sol - sps.linalg.spsolve(equation.jac, equation.val)
             p.val = sol[p_ix]
             lam.val = sol[lam_ix]
 
             c.val = sol[c_ix]
             lam_c.val = sol[lam_c_ix]
-
 
             if err != err or newton_it > 10 or err > 10e10:
                 # Reset
@@ -215,14 +218,14 @@ def viscous_flow(disc, data, time_step_param):
                 err = np.inf
                 newton_it = 0
             # print(err)
-        print('Converged Newton in : ', newton_it - 1, ' iterations. Error: ', err)
+        print("Converged Newton in : ", newton_it - 1, " iterations. Error: ", err)
         if newton_it < 3 and dt < time_step_param["max_dt"]:
             dt = dt * 2
         elif newton_it < 7 and dt < time_step_param["max_dt"]:
             dt *= 1.1
 
-        viz.split_variables(gb, [p.val, c.val], ['pressure', 'concentration'])
+        viz.split_variables(gb, [p.val, c.val], ["pressure", "concentration"])
 
-        exporter.write_vtk(['pressure', 'concentration'],time_step=k)
+        exporter.write_vtk(["pressure", "concentration"], time_step=k)
         times.append(t)
     exporter.write_pvd(timestep=np.array(times))

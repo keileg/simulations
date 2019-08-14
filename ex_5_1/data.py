@@ -1,9 +1,11 @@
 import numpy as np
 import porepy as pp
 
+
 class Data(object):
     """ Data class for copuled flow and temperature transport.
     """
+
     def __init__(self, num_fracs, mesh_args):
         """
         Parameters:
@@ -20,12 +22,12 @@ class Data(object):
         self.transport_keyword = "transport"
 
         self.param = {
-            "km": 10**-3 * pp.METER**2,
-            "kf": 10**0 * pp.METER**2,
-            "kn": 20**0 * pp.METER**2,
-            "Dm": 10**-4 * pp.METER**2 / pp.SECOND,
-            "Df": 10**-4 * pp.METER**2 / pp.SECOND,
-            "Dn": 20**-4 * pp.METER**2 / pp.SECOND,
+            "km": 10 ** -3 * pp.METER ** 2,
+            "kf": 10 ** 0 * pp.METER ** 2,
+            "kn": 20 ** 0 * pp.METER ** 2,
+            "Dm": 10 ** -4 * pp.METER ** 2 / pp.SECOND,
+            "Df": 10 ** -4 * pp.METER ** 2 / pp.SECOND,
+            "Dn": 20 ** -4 * pp.METER ** 2 / pp.SECOND,
             "aperture": 0.01 * pp.METER,
             "porosity": 0.2,
         }
@@ -43,10 +45,7 @@ class Data(object):
         Lx = 2
         Ly = 2
         Lz = 1
-        domain = {'xmin': 0, 'xmax': Lx,
-                  'ymin': 0, 'ymax': Ly,
-                  'zmin': 0, 'zmax': Lz,
-        }
+        domain = {"xmin": 0, "xmax": Lx, "ymin": 0, "ymax": Ly, "zmin": 0, "zmax": Lz}
         cc_offset = np.linspace(0, Ly, self.num_fracs)
         for i in range(self.num_fracs):
             cc = np.random.rand(3) * np.array([Lx, Ly, Lz])
@@ -59,7 +58,6 @@ class Data(object):
             strike = np.random.rand(1) * np.pi
             dip = np.random.rand(1) * np.pi
             fracs.append(pp.EllipticFracture(cc, R1, R2, angle, strike, dip))
-
         fracture_network = pp.FractureNetwork3d(fracs, domain)
         self.fracture_network = fracture_network
         self.gb = fracture_network.mesh(self.mesh_args)
@@ -67,10 +65,14 @@ class Data(object):
         g_max = self.gb.grids_of_dimension(self.gb.dim_max())[0]
         (xmin, ymin, zmin) = np.min(g_max.nodes, axis=1)
         (xmax, ymax, zmax) = np.max(g_max.nodes, axis=1)
-        self.domain = {'xmin': xmin, 'xmax': xmax,
-                       'ymin': ymin, 'ymax': ymax,
-                       'zmin': zmin, 'zmax': zmax,
-                       }
+        self.domain = {
+            "xmin": xmin,
+            "xmax": xmax,
+            "ymin": ymin,
+            "ymax": ymax,
+            "zmin": zmin,
+            "zmax": zmax,
+        }
 
     def swap_fracture_grids(self, mesh_args):
         """
@@ -93,7 +95,7 @@ class Data(object):
                 rem_nodes.append(g)
         for g in rem_nodes:
             self.gb.remove_node(g)
-            
+
         new_grids = []
         for g, _ in gb_fracs:
             if g.dim <= self.gb.dim_max() - 2:
@@ -101,17 +103,16 @@ class Data(object):
         self.gb.add_nodes(new_grids)
 
         for e, d in gb_fracs.edges():
-            if d['mortar_grid'].dim <= self.gb.dim_max() - 2:
+            if d["mortar_grid"].dim <= self.gb.dim_max() - 2:
                 gl, gh = gb_fracs.nodes_of_edge(e)
-                self.gb.add_edge((gl, gh), d['face_cells'])
+                self.gb.add_edge((gl, gh), d["face_cells"])
                 new_d = self.gb.edge_props((gl, gh))
-                new_d['mortar_grid'] = d['mortar_grid']
-
+                new_d["mortar_grid"] = d["mortar_grid"]
 
     def viscosity(self, c):
         """ Return the viscosity as a function of temperature
         """
-        return pp.ad.exp(1*c)
+        return pp.ad.exp(1 * c)
 
     def add_data(self):
         """ Add data to the GridBucket
@@ -132,9 +133,9 @@ class Data(object):
             empty = np.empty(0)
 
             # Specific volume.
-            specific_volume = np.power(self.param["aperture"], self.gb.dim_max() - g.dim)
-            param["specific_volume"] = specific_volume * unity
-
+            specific_volume = np.power(
+                self.param["aperture"], self.gb.dim_max() - g.dim
+            )
 
             # Tangential permeability
             if g.dim == self.gb.dim_max():
@@ -144,9 +145,6 @@ class Data(object):
 
             perm = pp.SecondOrderTensor(kxx)
             param["second_order_tensor"] = perm
-
-            # Mass weight
-            param["mass_weight"] = specific_volume * self.param['porosity']
 
             # Source term
             param["source"] = zeros
@@ -160,9 +158,8 @@ class Data(object):
             else:
                 bound_face_centers = g.face_centers[:, bound_faces]
                 # Find faces on right and left side of domain
-                north = bound_face_centers[1, :] > self.domain["ymax"] - \
-                                                   self.tol
-                south = bound_face_centers[1, :] < self.domain['ymin'] + self.tol
+                north = bound_face_centers[1, :] > self.domain["ymax"] - self.tol
+                south = bound_face_centers[1, :] < self.domain["ymin"] + self.tol
 
                 labels = np.array(["neu"] * bound_faces.size)
                 # Add dirichlet condition to left and right faces
@@ -181,9 +178,9 @@ class Data(object):
         for e, d in self.gb.edges():
             # Get lower dimensional grid
             g_l = self.gb.nodes_of_edge(e)[0]
-            mg = d['mortar_grid']
+            mg = d["mortar_grid"]
 
-            kn = self.param["kn"] * np.ones(mg.num_cells) / self.param['aperture']
+            kn = self.param["kn"] * np.ones(mg.num_cells) / self.param["aperture"]
             param = {"normal_diffusivity": kn}
             pp.initialize_data(e, d, keyword, param)
 
@@ -202,8 +199,9 @@ class Data(object):
             empty = np.empty(0)
 
             # Specific volume.
-            specific_volume = np.power(self.param["aperture"], self.gb.dim_max() - g.dim)
-            param["specific_volume"] = specific_volume * unity
+            specific_volume = np.power(
+                self.param["aperture"], self.gb.dim_max() - g.dim
+            )
 
             # Tangential diffusivity
             if g.dim == 3:
@@ -216,6 +214,9 @@ class Data(object):
             # Source term
             param["source"] = zeros
 
+            # Mass weight
+            param["mass_weight"] = specific_volume * self.param["porosity"] * unity
+
             # Boundaries
             bound_faces = g.get_boundary_faces()
             bc_val = np.zeros(g.num_faces)
@@ -224,9 +225,7 @@ class Data(object):
             else:
                 bound_face_centers = g.face_centers[:, bound_faces]
 
-                south = bound_face_centers[1, :] < self.domain['ymin'] + self.tol
-                north = bound_face_centers[1, :] > self.domain["ymax"] - \
-                                                   self.tol
+                north = bound_face_centers[1, :] > self.domain["ymax"] - self.tol
 
                 labels = np.array(["neu"] * bound_faces.size)
                 labels[north] = "dir"
@@ -243,8 +242,8 @@ class Data(object):
         # Normal diffusivity
         for e, d in self.gb.edges():
             g_l = self.gb.nodes_of_edge(e)[0]
-            mg = d['mortar_grid']
+            mg = d["mortar_grid"]
 
-            dn = self.param["Dn"] * np.ones(mg.num_cells) / self.param['aperture']
+            dn = self.param["Dn"] * np.ones(mg.num_cells) / self.param["aperture"]
             param = {"normal_diffusivity": dn}
             pp.initialize_data(e, d, keyword, param)
