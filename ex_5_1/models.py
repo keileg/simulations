@@ -14,7 +14,7 @@ import time
 import projection
 import viz
 
-def viscous_flow(disc, data):
+def viscous_flow(disc, data, time_step_param):
     """
     Solve the coupled problem of fluid flow and temperature transport, where the
     viscosity is depending on the temperature.
@@ -70,11 +70,10 @@ def viscous_flow(disc, data):
     div = projection.faces2cells(gb)
 
     # Assemble geometric values
-    apertures = disc.mat[flow_kw]['aperture']
-    porosity = data.param['porosity']
-    cell_volumes = porosity * gb.cell_volumes() * apertures
-    mortar_volumes = gb.cell_volumes_mortar()
-    mortar_area = mortar_volumes * (master2mortar * avg * apertures)
+    mass_weight = disc.mat[tran_kw]['mass_weight']
+    cell_volumes = gb.cell_volumes() * mass_weight
+    # mortar_volumes = gb.cell_volumes_mortar()
+    # mortar_area = mortar_volumes * (master2mortar * avg * specific_volume)
 
     # Define secondary variables:
     q_func  = lambda p, c, lam: (
@@ -90,7 +89,7 @@ def viscous_flow(disc, data):
     )
     # Flow, coupling law
     coupling_law = lambda p, lam, c: (
-        lam / kn / mortar_area  +
+        lam / kn +
         (slave2mortar * p - master2mortar * trace_p(p, mortar2master * lam)) /
         mu((slave2mortar * c + master2mortar * avg * c) / 2)
     )
@@ -109,7 +108,7 @@ def viscous_flow(disc, data):
     )
     # Diffusive copuling law
     coupling_law_c = lambda c, lam_c:(
-        lam_c / Dn / mortar_area +
+        lam_c / Dn +
         slave2mortar * c - master2mortar * trace_c(c, mortar2master * lam_c)
     )
     # Tranpsort, conservation equation
@@ -140,7 +139,7 @@ def viscous_flow(disc, data):
     p0 = sol_init[:gb.num_cells()]
     lam0 = sol_init[gb.num_cells():]
 
-    # Now that we have solve for initial condition, initalize full problem
+    # Now that we have solved for initial condition, initalize full problem
     p, lam, c, lam_c = ad.initAdArrays([p0, lam0, c0, lam_c0])
     sol = np.hstack((p.val, lam.val, c.val, lam_c.val))
     q = q_func(p, c, lam)
@@ -157,17 +156,16 @@ def viscous_flow(disc, data):
         2*gb.num_cells() + 2 * gb.num_mortar_cells()
     )
     # solve system
-    time_step = data.param['time_step_param']
-    dt = time_step["dt"]
+    dt = time_step_param["dt"]
     t = 0
     k = 0
-    exporter = pp.Exporter(gb, time_step['file_name'], time_step['folder_name'])
+    exporter = pp.Exporter(gb, time_step_param['file_name'], time_step_param['folder_name'])
     # Export initial condition
     viz.split_variables(gb, [p.val, c.val], ['pressure', 'concentration'])
     exporter.write_vtk(['pressure', 'concentration'], time_step=k)
     times = [0]
 
-    while t <= time_step["end_time"]:
+    while t <= time_step_param["end_time"]:
         t+=dt
         k+=1
         print('Solving time step: ', k,' dt: ', dt, ' Time: ', t)
@@ -218,9 +216,9 @@ def viscous_flow(disc, data):
                 newton_it = 0
             # print(err)
         print('Converged Newton in : ', newton_it - 1, ' iterations. Error: ', err)
-        if newton_it < 3 and dt < time_step["max_dt"]:
+        if newton_it < 3 and dt < time_step_param["max_dt"]:
             dt = dt * 2
-        elif newton_it < 7 and dt < time_step["max_dt"]:
+        elif newton_it < 7 and dt < time_step_param["max_dt"]:
             dt *= 1.1
 
         viz.split_variables(gb, [p.val, c.val], ['pressure', 'concentration'])

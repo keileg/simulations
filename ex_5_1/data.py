@@ -4,7 +4,7 @@ import porepy as pp
 class Data(object):
     """ Data class for copuled flow and temperature transport.
     """
-    def __init__(self,num_fracs, param):
+    def __init__(self, num_fracs, mesh_args):
         """
         Parameters:
         num_fracs (int): Number of fractures to include in the model
@@ -12,17 +12,29 @@ class Data(object):
         """
         self.gb = None
         self.domain = None
-        self.param = param
+        self.mesh_args = mesh_args
+        self.num_fracs = num_fracs
 
         self.tol = 1e-3
         self.flow_keyword = "flow"
         self.transport_keyword = "transport"
 
-        self.create_gb(num_fracs)
+        self.param = {
+            "km": 10**-3 * pp.METER**2,
+            "kf": 10**0 * pp.METER**2,
+            "kn": 20**0 * pp.METER**2,
+            "Dm": 10**-4 * pp.METER**2 / pp.SECOND,
+            "Df": 10**-4 * pp.METER**2 / pp.SECOND,
+            "Dn": 20**-4 * pp.METER**2 / pp.SECOND,
+            "aperture": 0.01 * pp.METER,
+            "porosity": 0.2,
+        }
+
+        self.create_gb()
 
     # ------------------------------------------------------------------------ #
 
-    def create_gb(self, num_fracs):
+    def create_gb(self):
         """ Load the pickled grid bucket
         """
         np.random.seed(1)
@@ -35,8 +47,8 @@ class Data(object):
                   'ymin': 0, 'ymax': Ly,
                   'zmin': 0, 'zmax': Lz,
         }
-        cc_offset = np.linspace(0, Ly, num_fracs)
-        for i in range(num_fracs):
+        cc_offset = np.linspace(0, Ly, self.num_fracs)
+        for i in range(self.num_fracs):
             cc = np.random.rand(3) * np.array([Lx, Ly, Lz])
             cc[1] = cc_offset[i]
             R1 = 0.5 + 0.5 * np.random.randn(1)
@@ -50,7 +62,7 @@ class Data(object):
 
         fracture_network = pp.FractureNetwork3d(fracs, domain)
         self.fracture_network = fracture_network
-        self.gb = fracture_network.mesh(self.param['mesh_args'])
+        self.gb = fracture_network.mesh(self.mesh_args)
 
         g_max = self.gb.grids_of_dimension(self.gb.dim_max())[0]
         (xmin, ymin, zmin) = np.min(g_max.nodes, axis=1)
@@ -65,7 +77,7 @@ class Data(object):
         Remesh the domain and swap out lower-dimensional meshes with the new meshes.
 
         Parameters:
-        mesh_args (Dictionary) : Meshargumetns for new mesh
+        mesh_args (Dictionary) : Mesharguments for new mesh
         """
         gb_fracs = self.fracture_network.mesh(mesh_args, dfn=False)
         g_map = dict()
@@ -99,7 +111,6 @@ class Data(object):
     def viscosity(self, c):
         """ Return the viscosity as a function of temperature
         """
-
         return pp.ad.exp(1*c)
 
     def add_data(self):
@@ -120,20 +131,22 @@ class Data(object):
             zeros = np.zeros(g.num_cells)
             empty = np.empty(0)
 
+            # Specific volume.
+            specific_volume = np.power(self.param["aperture"], self.gb.dim_max() - g.dim)
+            param["specific_volume"] = specific_volume * unity
+
+
             # Tangential permeability
             if g.dim == self.gb.dim_max():
                 kxx = self.param["km"] * unity
-                perm = pp.SecondOrderTensor(3, kxx)
             else:
-                kxx = self.param["kf"] * unity
-                perm = pp.SecondOrderTensor(3, kxx)
+                kxx = self.param["kf"] * specific_volume * unity
 
+            perm = pp.SecondOrderTensor(kxx)
             param["second_order_tensor"] = perm
 
-            # Crossectional area.
-            aperture = np.power(self.param["aperture"], self.gb.dim_max() -
-                                g.dim)
-            param["aperture"] = aperture * unity
+            # Mass weight
+            param["mass_weight"] = specific_volume * self.param['porosity']
 
             # Source term
             param["source"] = zeros
@@ -141,6 +154,7 @@ class Data(object):
             # Boundaries
             bound_faces = g.get_boundary_faces()
             bc_val = np.zeros(g.num_faces)
+
             if bound_faces.size == 0:
                 param["bc"] = pp.BoundaryCondition(g, empty, empty)
             else:
@@ -168,16 +182,9 @@ class Data(object):
             # Get lower dimensional grid
             g_l = self.gb.nodes_of_edge(e)[0]
             mg = d['mortar_grid']
-            check_P = mg.slave_to_mortar_avg()
 
-            aperture = self.gb.node_props(g_l, pp.PARAMETERS)[keyword][
-                "aperture"]
-            gamma = check_P * np.power(aperture, 1. / (self.gb.dim_max() -
-                                                       g_l.dim))
-            kn = self.param['kn'] * np.ones(mg.num_cells) / (gamma / 2)
-
+            kn = self.param["kn"] * np.ones(mg.num_cells) / self.param['aperture']
             param = {"normal_diffusivity": kn}
-
             pp.initialize_data(e, d, keyword, param)
 
     def add_transport_data(self):
@@ -194,19 +201,18 @@ class Data(object):
             zeros = np.zeros(g.num_cells)
             empty = np.empty(0)
 
-            # Tangential permeability
+            # Specific volume.
+            specific_volume = np.power(self.param["aperture"], self.gb.dim_max() - g.dim)
+            param["specific_volume"] = specific_volume * unity
+
+            # Tangential diffusivity
             if g.dim == 3:
                 kxx = self.param["Dm"] * unity
             else:
-                kxx = self.param["Df"] * unity
-            perm = pp.SecondOrderTensor(3, kxx)
-
+                kxx = self.param["Df"] * specific_volume * unity
+            perm = pp.SecondOrderTensor(kxx)
             param["second_order_tensor"] = perm
 
-            # Aperture
-            aperture = np.power(self.param["aperture"], self.gb.dim_max() -
-                                g.dim)
-            param["aperture"] = aperture * unity
             # Source term
             param["source"] = zeros
 
@@ -234,38 +240,11 @@ class Data(object):
 
             pp.initialize_data(g, d, keyword, param)
 
-        # Normal permeability
+        # Normal diffusivity
         for e, d in self.gb.edges():
             g_l = self.gb.nodes_of_edge(e)[0]
             mg = d['mortar_grid']
-            check_P = mg.slave_to_mortar_avg()
 
-            kxx = self.param["Dn"]
-            
-            aperture = self.gb.node_props(g_l, pp.PARAMETERS)[keyword][
-                "aperture"]
-            gamma = check_P * np.power(aperture, 1. / (self.gb.dim_max() -
-                                                       g_l.dim))
-            kn = kxx * np.ones(mg.num_cells) / (gamma / 2)
-
-            param = {"normal_diffusivity": kn}
-
+            dn = self.param["Dn"] * np.ones(mg.num_cells) / self.param['aperture']
+            param = {"normal_diffusivity": dn}
             pp.initialize_data(e, d, keyword, param)
-
-    # ------------------------------------------------------------------------ #
-
-    def print_setup(self):
-        print(" ------------------------------------------------------------- ")
-        print(" -------------------- PROBLEM SETUP -------------------------- ")
-
-        table = [["Mesh size", self.param["mesh_size"]],
-                 ["Aperture", self.param["aperture"]],
-                 ["Km", self.param["km"]],
-                 ["Kf", self.param["kf"]],
-                 ["Kn", self.param["kn"]]]
-
-
-        print(" ------------------------------------------------------------- ")
-
-    # ------------------------------------------------------------------------ #
-

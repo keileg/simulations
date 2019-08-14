@@ -11,31 +11,20 @@ time_step_param = {
     'file_name': 'matching',
     'folder_name': 'res_matching',
     }
+
 mesh_args = {
     "mesh_size_frac": 0.5,
     'mesh_size_min': 0.1
 }
-param = {
-    "km": 10**-3 * pp.METER**2,
-    "kf": 10**0 * pp.METER**2,
-    "kn": 10**0 * pp.METER**2,
-    "Dm": 10**-4 * pp.METER**2 / pp.SECOND,
-    "Df": 10**-4 * pp.METER**2 / pp.SECOND,
-    "Dn": 10**-4 * pp.METER**2 / pp.SECOND,
-    "aperture": 0.01 * pp.METER,
-    "porosity": 0.2,
-    "time_step_param": time_step_param,
-    "mesh_args": mesh_args,
-}
 print("Solve with matching mesh")
 print("mesh")
-matching_data = data.Data(15, param)
+matching_data = data.Data(15, mesh_args)
 print('Generate data')
 matching_data.add_data()
 print('Discretize')
 matching_disc = discretizations.ViscousFlow(matching_data)
 print('Call viscous flow model')
-models.viscous_flow(matching_disc, matching_data)
+models.viscous_flow(matching_disc, matching_data, time_step_param)
 
 print('Solved with matching mesh\n')
 print('--------------------------------------------------------------\n')
@@ -52,4 +41,4 @@ nm_data.add_data()
 print('Discretize')
 nm_disc = discretizations.ViscousFlow(nm_data)
 print('Call viscous flow model')
-models.viscous_flow(nm_disc, nm_data)
+models.viscous_flow(nm_disc, nm_data, time_step_param)

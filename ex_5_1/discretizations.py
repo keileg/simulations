@@ -55,7 +55,6 @@ class ViscousFlow(object):
 
         # Assemble discrete parameters and geometric values
         bc_val = assembler.assemble_parameter(flow_kw, 'bc_values')
-        apertures = assembler.assemble_parameter(flow_kw, 'aperture')
         kn = [d[pp.PARAMETERS][flow_kw]['normal_diffusivity'] for _, d in gb.edges()]
         kn = np.hstack(kn)
 
@@ -66,7 +65,6 @@ class ViscousFlow(object):
             'trace_face': trace_face,
             'bc_values': bc_val,
             'kn': kn,
-            'aperture': apertures,
             }
 
     def discretize_transport(self):
@@ -98,7 +96,7 @@ class ViscousFlow(object):
         bc_sgn = assembler.assemble_parameter(transport_kw, 'bc_sgn')
         frac_bc = assembler.assemble_parameter(transport_kw, 'frac_bc')
 
-        apertures = assembler.assemble_parameter(transport_kw, 'aperture')
+        mass_weight = assembler.assemble_parameter(transport_kw, 'mass_weight')
         dn = [d[pp.PARAMETERS][transport_kw]['normal_diffusivity'] for _, d in gb.edges()]
         dn = np.hstack(dn)
 
@@ -114,7 +112,7 @@ class ViscousFlow(object):
             'bc_sgn': bc_sgn,
             'frac_bc': frac_bc,
             'dn': dn,
-            'aperture': apertures,
+            'mass_weight': mass_weight,
             }
 
     def upwind(self, c, q):
@@ -202,8 +200,7 @@ def mass_matrix(gb, keyword):
     Discretize the mass matrix on each graph node
     """
     for g, d in gb:
-        aperture = d[pp.PARAMETERS][keyword]['aperture']
-        volumes = d[pp.PARAMETERS][keyword]['porosity'] * g.cell_volumes * aperture
+        volumes = d[pp.PARAMETERS][keyword]['mass_weight'] * g.cell_volumes
         d[pp.DISCRETIZATION_MATRICES][keyword]['mass_matrix'] = sps.diags(volumes)
 
 
