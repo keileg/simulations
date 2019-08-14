@@ -1,5 +1,8 @@
 """
-Module to solve viscous flow.
+Module to solve viscous flow. This module contains the function viscous_flow,
+which takes a discretization class and a data class as arguments. The
+discretization class is found at discretization.ViscouFlow and the data is found
+at data.Data.
 """
 
 import numpy as np

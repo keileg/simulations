@@ -1,3 +1,11 @@
+"""
+The module contains the discretizations needed for the viscous flow
+problem. It contains a class ViscousFlow that is the main access point
+to the discretizations, and it has functions for discretizing and assembling
+the needed discretization matrices. The ViscouFlow class is the one that should
+be supplied to the models.viscous_flow function.
+"""
+
 import porepy as pp
 import numpy as np
 import scipy.sparse as sps
@@ -7,16 +15,30 @@ import porepy.ad as ad
 
 
 class ViscousFlow(object):
+    """
+    Class for discretizing the operators needed to formulate the viscous flow
+    problem.
+    """
+
     def __init__(self, data):
+        """
+        Initialize data and discretize.
+        """
         self.data = data
         self.mat = {}
         self.discretize()
 
     def discretize(self):
+        """
+        Discretize all operators
+        """
         self.discretize_flow()
         self.discretize_transport()
 
     def discretize_flow(self):
+        """
+        Discretize the flow operators
+        """
         gb = self.data.gb
         flow_kw = self.data.flow_keyword
         elliptic_disc(gb, flow_kw)
@@ -48,6 +70,9 @@ class ViscousFlow(object):
             }
 
     def discretize_transport(self):
+        """
+        Discretize the transport operators
+        """
         gb = self.data.gb
         transport_kw = self.data.transport_keyword
         elliptic_disc(gb, transport_kw)
@@ -91,13 +116,6 @@ class ViscousFlow(object):
             'dn': dn,
             'aperture': apertures,
             }
-        # # Create data dictionary for upwind parameters
-        # upwind_dict = {'bc_values': bc_val,
-        #                'mortar2master': np.abs(div) * mortar2master,
-        #                'mortar2slave': mortar2slave,
-        #                'master2mortar': master2mortar * avg,
-        #                'slave2mortar': slave2mortar,
-        #                }
 
     def upwind(self, c, q):
         """
@@ -121,7 +139,8 @@ class ViscousFlow(object):
         T_upw = (pos_flag * pos_cells  + neg_flag * neg_cells) * c
         return (T_upw + self.mat[kw]['bc_values'] * bc_flag) * q
 
-    def mortar_upwind(self, c, lam, div, avg, master2mortar, slave2mortar, mortar2master, mortar2slave):
+    def mortar_upwind(
+            self, c, lam, div, avg, master2mortar, slave2mortar, mortar2master, mortar2slave):
         """
         Get the upwind weights between dimensions
         """
@@ -151,12 +170,18 @@ class ViscousFlow(object):
 
 
 def elliptic_disc(gb, keyword):
+    """
+    Discretize the elliptic operator on each graph node
+    """
     for g, d in gb:
         pp.Mpfa(keyword).discretize(g, d)
         d[pp.DISCRETIZATION_MATRICES][keyword]['div'] = pp.fvutils.scalar_divergence(g)
 
 
 def upwind_disc(gb, keyword):
+    """
+    Discretize the upwind operator on each graph node
+    """
     for g, d in gb:
         pos_cells = g.cell_faces.copy()
         neg_cells = g.cell_faces.copy()
@@ -173,6 +198,9 @@ def upwind_disc(gb, keyword):
 
 
 def mass_matrix(gb, keyword):
+    """
+    Discretize the mass matrix on each graph node
+    """
     for g, d in gb:
         aperture = d[pp.PARAMETERS][keyword]['aperture']
         volumes = d[pp.PARAMETERS][keyword]['porosity'] * g.cell_volumes * aperture
@@ -180,6 +208,9 @@ def mass_matrix(gb, keyword):
 
 
 def mortar_weight(gb, keyword):
+    """
+    Discretize the mortar coupling on each graph edge
+    """
     for e, d in gb.edges():
         gs, gm = gb.nodes_of_edge(e)
         if gs == gm:
@@ -191,6 +222,9 @@ def mortar_weight(gb, keyword):
 
 
 def mortar_projections(gb, keyword):
+    """
+    Obtain projections between mortar grids, slave grids and master grids.
+    """
     for e, d in gb.edges():
         gs, gm = gb.nodes_of_edge(e)
         if gs.dim==gm.dim:
