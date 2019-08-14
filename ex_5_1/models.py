@@ -9,7 +9,7 @@ import numpy as np
 import porepy as pp
 import porepy.ad as ad
 import scipy.sparse as sps
-import time
+import os
 
 import projection
 import viz
@@ -168,6 +168,11 @@ def viscous_flow(disc, data, time_step_param):
     viz.split_variables(gb, [p.val, c.val], ["pressure", "concentration"])
     exporter.write_vtk(["pressure", "concentration"], time_step=k)
     times = [0]
+    # Store average concentration
+    out_file_name = "res_avg_c/" + time_step_param["file_name"] + ".csv"
+    os.makedirs(os.path.dirname(out_file_name), exist_ok=True)
+    out_file = open(out_file_name, "w")
+    viz.store_avg_concentration(gb, 0, "concentration", out_file)
 
     while t <= time_step_param["end_time"]:
         t += dt
@@ -227,5 +232,7 @@ def viscous_flow(disc, data, time_step_param):
         viz.split_variables(gb, [p.val, c.val], ["pressure", "concentration"])
 
         exporter.write_vtk(["pressure", "concentration"], time_step=k)
+        viz.store_avg_concentration(gb, t, "concentration", out_file)
         times.append(t)
     exporter.write_pvd(timestep=np.array(times))
+    out_file.close()
