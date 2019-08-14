@@ -42,7 +42,7 @@ def extract_mandel_data(grid_object, data_dictionary,
     kw_m = parameter_keyword_mechanics
 
     # Retrieving data from the grid object
-    [Nx, Ny] = g.cart_dims        # Number of cells in each direction
+    #[Nx, Ny] = g.cart_dims        # Number of cells in each direction
     a = g.bounding_box()[1][0]    # [m] This is the same as Lx
     b = g.bounding_box()[1][1]    # [m] This is the same as Ly
 

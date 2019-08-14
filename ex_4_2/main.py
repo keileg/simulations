@@ -19,14 +19,12 @@ import porepy as pp
 from mandel_analytical import extract_mandel_data
 
 # %% Function definitions
-
-
-def make_grid(N=[40, 40], L=[100, 10]):
+def make_grid(mesh_size=2.0, L=[100.0, 10.0]):
     """
-    Creates a structured cartesian grid.
+    Create an unstructured triangular mesh using Gmsh.
 
     Parameters:
-        N (array): number of cells for each dimension [-]
+        mesh_size (scalar): (approximated) size of triangular elements [-]
         L (array): length of the domain for each dimension [m]
 
     Returns:
@@ -34,20 +32,27 @@ def make_grid(N=[40, 40], L=[100, 10]):
                             In this case we only have one grid.
     """
 
-    gb = pp.meshing.cart_grid([], N, physdims=L)  # create cartesian grid
-    gb.compute_geometry()  # compute the grid geometry
-    gb.assign_node_ordering()  # assign node ordering in the grid bucket
+    domain = {"xmin": 0.0, "xmax": L[0], "ymin": 0.0, "ymax": L[1]}
+    network_2d = pp.FractureNetwork2d(None, None, domain)
+    target_h_bound = target_h_fracture = target_h_min = mesh_size
+
+    mesh_args = {
+        "mesh_size_bound": target_h_bound,
+        "mesh_size_frac": target_h_fracture,
+        "mesh_size_min": target_h_min,
+    }
+
+    gb = network_2d.mesh(mesh_args)
 
     return gb
 
 
-def set_time_parameters(data_dictionary,
-                        parameter_keyword_flow):
+def set_time_parameters(data_dictionary, parameter_keyword_flow):
     """
     Sets the time parameters for the coupled problem.
 
     Parameters:
-        d (Dictionary): Model's data dictionary
+        data_dictionary (Dictionary): Model's data dictionary
         parameter_keyword_flow (String): Keyword for the flow parameter
 
     Note: This function does not return any value, but rather updates the data
@@ -59,12 +64,12 @@ def set_time_parameters(data_dictionary,
     kw_f = parameter_keyword_flow
 
     # Declaring time parameters (These parameters must be set by the user)
-    initial_simulation_time = 0     # [s]
-    final_simulation_time = 50000   # [s]
-    time_step = 10                  # [s]
-    time_values = np.arange(initial_simulation_time,
-                            final_simulation_time+time_step,
-                            time_step)
+    initial_simulation_time = 0  # [s]
+    final_simulation_time = 50000  # [s]
+    time_step = 10  # [s]
+    time_values = np.arange(
+        initial_simulation_time, final_simulation_time + time_step, time_step
+    )
 
     # Storing in the dictionary
     d[pp.PARAMETERS][kw_f]["initial_time"] = initial_simulation_time
@@ -73,9 +78,9 @@ def set_time_parameters(data_dictionary,
     d[pp.PARAMETERS][kw_f]["time_values"] = time_values
 
 
-def set_model_data(data_dictionary,
-                   parameter_keyword_flow,
-                   parameter_keyword_mechanics):
+def set_model_data(
+    data_dictionary, parameter_keyword_flow, parameter_keyword_mechanics
+):
     """
     Declaration of the model's data.
 
@@ -97,25 +102,29 @@ def set_model_data(data_dictionary,
     # In this example we use the data from
     # https://link.springer.com/article/10.1007/s10596-013-9393-8
 
-    mu_s = 2.475E+09                        # [Pa] First Lame parameter
-    lambda_s = 1.65E+09                     # [Pa] Second Lame parameter
-    K_s = (2/3) * mu_s + lambda_s           # [Pa] Bulk modulus
-    E_s = mu_s * ((9*K_s)/(3*K_s+mu_s))     # [Pa] Young's modulus
-    nu_s = (3*K_s-2*mu_s)/(2*(3*K_s+mu_s))  # [-] Poisson's coefficient
-    k_s = 0.1 * 9.869233E-13                # [m^2] Permeabiliy
-    alpha_biot = 1.                         # [-] Biot's coefficient
+    mu_s = 2.475e09  # [Pa] First Lame parameter
+    lambda_s = 1.65e09  # [Pa] Second Lame parameter
+    K_s = (2 / 3) * mu_s + lambda_s  # [Pa] Bulk modulus
+    E_s = mu_s * ((9 * K_s) / (3 * K_s + mu_s))  # [Pa] Young's modulus
+    nu_s = (3 * K_s - 2 * mu_s) / (2 * (3 * K_s + mu_s))  # [-] Poisson's coefficient
+    k_s = 0.1 * 9.869233e-13  # [m^2] Permeabiliy
+    alpha_biot = 1.0  # [-] Biot's coefficient
 
-    mu_f = 1.0E-3                           # [Pa s] Dynamic viscosity
+    mu_f = 1.0e-3  # [Pa s] Dynamic viscosity
 
-    S_m = 1/1.65E10                         # [1/Pa] Specific Storage
-    K_u = K_s + (alpha_biot**2)/S_m         # [Pa] Undrained bulk modulus
-    B = alpha_biot / (S_m * K_u)            # [-] Skempton's coefficient
-    nu_u = ((3*nu_s + B*(1-2*nu_s))         # [-] Undrained Poisson's ratio
-            / (3-B*(1-2*nu_s)))
-    c_f = ((2*k_s*(B**2)*mu_s*(1-nu_s)*(1+nu_u)**2)  # m^2/s Fluid diffusivity
-           / (9*mu_f*(1-nu_u)*(nu_u-nu_s)))
+    S_m = 1 / 1.65e10  # [1/Pa] Specific Storage
+    K_u = K_s + (alpha_biot ** 2) / S_m  # [Pa] Undrained bulk modulus
+    B = alpha_biot / (S_m * K_u)  # [-] Skempton's coefficient
+    nu_u = (3 * nu_s + B * (1 - 2 * nu_s)) / (  # [-] Undrained Poisson's ratio
+        3 - B * (1 - 2 * nu_s)
+    )
+    c_f = (
+        2 * k_s * (B ** 2) * mu_s * (1 - nu_s) * (1 + nu_u) ** 2
+    ) / (  # m^2/s Fluid diffusivity
+        9 * mu_f * (1 - nu_u) * (nu_u - nu_s)
+    )
 
-    F = 6.0E8                               # [N/m] Applied load
+    F = 6.0e8  # [N/m] Applied load
 
     # Storing in the dictionary
     d[pp.PARAMETERS][kw_f]["viscosity"] = mu_f
@@ -135,11 +144,13 @@ def set_model_data(data_dictionary,
     d[pp.PARAMETERS][kw_m]["applied_load"] = F
 
 
-def set_boundary_conditions(grid_object,
-                            data_dictionary,
-                            parameter_keyword_flow,
-                            parameter_keyword_mechanics,
-                            mandel_dictionary):
+def set_boundary_conditions(
+    grid_object,
+    data_dictionary,
+    parameter_keyword_flow,
+    parameter_keyword_mechanics,
+    mandel_dictionary,
+):
     """
     Sets the boundary conditions for the coupled problem.
 
@@ -164,18 +175,18 @@ def set_boundary_conditions(grid_object,
     times = d[pp.PARAMETERS][kw_f]["time_values"]
 
     # Retrieving data from the grid object
-    [Nx, Ny] = g.cart_dims      # Number of cells in each direction
+    # [Nx, Ny] = g.cart_dims      # Number of cells in each direction
     a = g.bounding_box()[1][0]  # [m] This is the same as Lx
     b = g.bounding_box()[1][1]  # [m] This is the same as Ly
 
     # Getting the boundary faces
-    b_faces = g.tags['domain_boundary_faces'].nonzero()[0]
+    b_faces = g.tags["domain_boundary_faces"].nonzero()[0]
 
     # Extracting indices of boundary faces w.r.t g
-    x_min = b_faces[g.face_centers[0, b_faces] < 0.0001]
-    x_max = b_faces[g.face_centers[0, b_faces] > 0.9999*a]
-    y_min = b_faces[g.face_centers[1, b_faces] < 0.0001]
-    y_max = b_faces[g.face_centers[1, b_faces] > 0.9999*b]
+    x_min = b_faces[g.face_centers[0, b_faces] < 1e-8]
+    x_max = b_faces[g.face_centers[0, b_faces] > a - 1e-8]
+    y_min = b_faces[g.face_centers[1, b_faces] < 1e-8]
+    y_max = b_faces[g.face_centers[1, b_faces] > b - 1e-8]
 
     # Extracting indices of boundary faces w.r.t b_faces
     west = np.in1d(b_faces, x_min).nonzero()
@@ -186,11 +197,11 @@ def set_boundary_conditions(grid_object,
     # Set flow boundary conditions [Time-independent Boundary Condition]
 
     # Setting the tags at each boundary side
-    labels_flow = np.array([None]*b_faces.size)
-    labels_flow[west] = 'neu'   # no flow
-    labels_flow[east] = 'dir'   # constant pressure
-    labels_flow[south] = 'neu'  # no flow
-    labels_flow[north] = 'neu'  # no flow
+    labels_flow = np.array([None] * b_faces.size)
+    labels_flow[west] = "neu"  # no flow
+    labels_flow[east] = "dir"  # constant pressure
+    labels_flow[south] = "neu"  # no flow
+    labels_flow[north] = "neu"  # no flow
 
     # Constructing the (scalar) bc object
     bc_flow = pp.BoundaryCondition(g, b_faces, labels_flow)
@@ -216,53 +227,53 @@ def set_boundary_conditions(grid_object,
     u_top = d_m["top_bc_values"]
 
     # Setting the tags at each boundary side for the mechanics problem
-    labels_mech = np.array([None]*b_faces.size)
-    labels_mech[west] = 'dir_x'   # roller
-    labels_mech[east] = 'neu'     # traction free
-    labels_mech[south] = 'dir_y'  # roller
-    labels_mech[north] = 'dir_y'  # roller (with non-zero uy)
+    labels_mech = np.array([None] * b_faces.size)
+    labels_mech[west] = "dir_x"  # roller
+    labels_mech[east] = "neu"  # traction free
+    labels_mech[south] = "dir_y"  # roller
+    labels_mech[north] = "dir_y"  # roller (with non-zero uy)
 
     # Constructing the bc object for the mechanics problem
     bc_mech = pp.BoundaryConditionVectorial(g, b_faces, labels_mech)
 
     # Constructing the boundary values array for the mechanics problem
-    bc_mech_values = np.zeros((len(times), g.num_faces*g.dim,))
+    bc_mech_values = np.zeros((len(times), g.num_faces * g.dim))
 
     for t in range(len(times)):
 
         # West side boundary conditions
-        bc_mech_values[t][2*x_min] = 0           # [m]
-        bc_mech_values[t][2*x_min+1] = 0         # [Pa]
+        bc_mech_values[t][2 * x_min] = 0  # [m]
+        bc_mech_values[t][2 * x_min + 1] = 0  # [Pa]
 
         # East side boundary conditions
-        bc_mech_values[t][2*x_max] = 0           # [Pa]
-        bc_mech_values[t][2*x_max+1] = 0         # [Pa]
+        bc_mech_values[t][2 * x_max] = 0  # [Pa]
+        bc_mech_values[t][2 * x_max + 1] = 0  # [Pa]
 
         # South Side boundary conditions
-        bc_mech_values[t][2*y_min] = 0           # [Pa]
-        bc_mech_values[t][2*y_min+1] = 0         # [m]
+        bc_mech_values[t][2 * y_min] = 0  # [Pa]
+        bc_mech_values[t][2 * y_min + 1] = 0  # [m]
 
         # North Side boundary conditions
-        bc_mech_values[t][2*y_max] = 0           # [Pa]
-        bc_mech_values[t][2*y_max+1] = u_top[t]  # [m]
+        bc_mech_values[t][2 * y_max] = 0  # [Pa]
+        bc_mech_values[t][2 * y_max + 1] = u_top[t]  # [m]
 
     # Saving boundary conditions in a dictionary
     bc_dictionary = dict()
 
-    bc_dictionary[kw_f] = {"bc": bc_flow,
-                           "bc_values": bc_flow_values}
+    bc_dictionary[kw_f] = {"bc": bc_flow, "bc_values": bc_flow_values}
 
-    bc_dictionary[kw_m] = {"bc": bc_mech,
-                           "bc_values": bc_mech_values}
+    bc_dictionary[kw_m] = {"bc": bc_mech, "bc_values": bc_mech_values}
 
     return bc_dictionary
 
 
-def assign_data(grid_object,
-                data_dictionary,
-                boundary_conditions_dictionary,
-                parameter_keyword_flow,
-                parameter_keyword_mechanics):
+def assign_data(
+    grid_object,
+    data_dictionary,
+    boundary_conditions_dictionary,
+    parameter_keyword_flow,
+    parameter_keyword_mechanics,
+):
     """
     Assign data to the model, which will later be used to discretize
     the coupled problem.
@@ -297,16 +308,17 @@ def assign_data(grid_object,
     bc_flow_values = bc_dict[kw_f]["bc_values"]
 
     # Create second order tensor object
-    perm = pp.SecondOrderTensor(g.dim,
-                                k * np.ones(g.num_cells))
+    perm = pp.SecondOrderTensor(g.dim, k * np.ones(g.num_cells))
 
     # Create specified parameters dicitionary
-    specified_parameters_flow = {"second_order_tensor": perm,
-                                 "biot_alpha": alpha_biot,
-                                 "bc": bc_flow,
-                                 "bc_values": bc_flow_values,
-                                 "time_step": dt,
-                                 "mass_weight": S_m * np.ones(g.num_cells)}
+    specified_parameters_flow = {
+        "second_order_tensor": perm,
+        "biot_alpha": alpha_biot,
+        "bc": bc_flow,
+        "bc_values": bc_flow_values,
+        "time_step": dt,
+        "mass_weight": S_m * np.ones(g.num_cells),
+    }
 
     # Initialize the flow data
     d = pp.initialize_default_data(g, d, kw_f, specified_parameters_flow)
@@ -322,30 +334,28 @@ def assign_data(grid_object,
     bc_mech_values = bc_dict[kw_m]["bc_values"][1]
 
     # Create fourth order tensor
-    constit = pp.FourthOrderTensor(g.dim,
-                                   mu * np.ones(g.num_cells),
-                                   lmbda * np.ones(g.num_cells))
+    constit = pp.FourthOrderTensor(
+        g.dim, mu * np.ones(g.num_cells), lmbda * np.ones(g.num_cells)
+    )
 
     # Create specified parameters dicitionary
-    specified_parameters_mechanics = {"fourth_order_tensor": constit,
-                                      "biot_alpha": alpha_biot,
-                                      "bc": bc_mech,
-                                      "bc_values": bc_mech_values}
+    specified_parameters_mechanics = {
+        "fourth_order_tensor": constit,
+        "biot_alpha": alpha_biot,
+        "bc": bc_mech,
+        "bc_values": bc_mech_values,
+    }
 
     # Initialize the mechanics
     d = pp.initialize_default_data(g, d, kw_m, specified_parameters_mechanics)
 
     # Save boundary conditions in d[pp.STATE]
-    pp.set_state(
-            d,
-            {kw_m: {"bc_values": bc_dict[kw_m]["bc_values"][0]}}
-            )
+    pp.set_state(d, {kw_m: {"bc_values": bc_dict[kw_m]["bc_values"][0]}})
 
 
-def initial_condition(data_dictionary,
-                      variable_flow,
-                      variable_mechanics,
-                      mandel_dictionary):
+def initial_condition(
+    data_dictionary, variable_flow, variable_mechanics, mandel_dictionary
+):
     """
     Establishes initial condition.
 
@@ -390,16 +400,15 @@ set_time_parameters(data, kw_f)  # set time parameters (User-defined)
 
 set_model_data(data, kw_f, kw_m)  # set model data (User-defined)
 
-mandel_dict = extract_mandel_data(g, data, kw_f, kw_m)   # extracting data
+mandel_dict = extract_mandel_data(g, data, kw_f, kw_m)  # extracting data
 
 bc_dict = set_boundary_conditions(g, data, kw_f, kw_m, mandel_dict)  # set bc
 
 assign_data(g, data, bc_dict, kw_f, kw_m)  # assigning data
 
-d_0, p_0 = initial_condition(data,
-                             variable_f,
-                             variable_m,
-                             mandel_dict)  # get initial condition
+d_0, p_0 = initial_condition(
+    data, variable_f, variable_m, mandel_dict
+)  # get initial condition
 
 # %% Discretize
 
@@ -418,7 +427,6 @@ biot_discretizer._discretize_flow(g, data)  # discretize flow problem
 
 
 class ImplicitMassMatrix(pp.MassMatrix):
-
     def __init__(self, keyword="flow", variable="pressure"):
         """
         Set the discretization, with the keyword used for storing various
@@ -448,7 +456,6 @@ class ImplicitMassMatrix(pp.MassMatrix):
 
 
 class ImplicitMpfa(pp.Mpfa):
-
     def assemble_matrix_rhs(self, g, data):
         """
         Overwrite MPFA method to be consistent with Biot's
@@ -458,7 +465,7 @@ class ImplicitMpfa(pp.Mpfa):
         viscosity = data[pp.PARAMETERS][self.keyword]["viscosity"]
         a, b = super().assemble_matrix_rhs(g, data)
         dt = data[pp.PARAMETERS][self.keyword]["time_step"]
-        return a * (1/viscosity) * dt, b * (1/viscosity) * dt
+        return a * (1 / viscosity) * dt, b * (1 / viscosity) * dt
 
 
 # Variable names
@@ -467,19 +474,19 @@ v_1 = variable_f
 
 # Names of the five terms of the equation + additional stabilization term.
 #                                        Term in the Biot equation:
-term_00 = "stress_divergence"          # div symmetric grad u
-term_01 = "pressure_gradient"          # alpha grad p
-term_10 = "displacement_divergence"    # d/dt alpha div u
-term_11_0 = "fluid_mass"               # d/dt beta p
-term_11_1 = "fluid_flux"               # div (rho g - K grad p)
-term_11_2 = "stabilization"            #
+term_00 = "stress_divergence"  # div symmetric grad u
+term_01 = "pressure_gradient"  # alpha grad p
+term_10 = "displacement_divergence"  # d/dt alpha div u
+term_11_0 = "fluid_mass"  # d/dt beta p
+term_11_1 = "fluid_flux"  # div (rho g - K grad p)
+term_11_2 = "stabilization"  #
 
 # Store in the data dictionary d and specify discretization objects.
 data[pp.PRIMARY_VARIABLES] = {v_0: {"cells": g.dim}, v_1: {"cells": 1}}
 data[pp.DISCRETIZATION] = {
     v_0: {term_00: pp.Mpsa(kw_m)},
     v_1: {
-        term_11_0: ImplicitMassMatrix(kw_f, variable_f),
+        term_11_0: ImplicitMassMatrix(kw_f, v_1),
         term_11_1: ImplicitMpfa(kw_f),
         term_11_2: pp.BiotStabilization(kw_f, v_1),
     },
@@ -492,22 +499,24 @@ data[pp.DISCRETIZATION] = {
 time_values = data[pp.PARAMETERS][kw_f]["time_values"]
 
 # Let's create a dictionary to store the solutions
-sol = {"pressure": np.zeros((len(time_values), g.num_cells)),
-       "displacement": np.zeros((len(time_values), g.dim*g.num_cells))}
+sol = {
+    "pressure": np.zeros((len(time_values), g.num_cells)),
+    "displacement": np.zeros((len(time_values), g.dim * g.num_cells)),
+}
 sol["pressure"][0] = p_0
 sol["displacement"][0] = d_0
 
 pressure = p_0
 displacement = d_0
-assembler = pp.Assembler(gb)    # assembly equation (note that the structure
-                                # of the linear system is time independent)
+assembler = pp.Assembler(gb)  # assembly equation (note that the structure
+# of the linear system is time independent)
 
-for t in range(len(time_values)-1):
+for t in range(len(time_values) - 1):
 
     # Update data for current time
     pp.set_state(data, {variable_m: displacement, variable_f: pressure})
     pp.set_state(data, {kw_m: {"bc_values": bc_dict[kw_m]["bc_values"][t]}})
-    data[pp.PARAMETERS][kw_m]["bc_values"] = bc_dict[kw_m]["bc_values"][t+1]
+    data[pp.PARAMETERS][kw_m]["bc_values"] = bc_dict[kw_m]["bc_values"][t + 1]
 
     # Assemble and solve
     A, b = assembler.assemble_matrix_rhs()
@@ -519,36 +528,37 @@ for t in range(len(time_values)-1):
     pressure = data[pp.STATE][variable_f]
 
     # Save in solution dictionary
-    sol["pressure"][t+1] = pressure
-    sol["displacement"][t+1] = displacement
+    sol["pressure"][t + 1] = pressure
+    sol["displacement"][t + 1] = displacement
 
     # Print progress on console
-    sys.stdout.write("\rSimulation progress: %d%%" %
-                     (np.ceil((t/(len(time_values)-2))*100)))
+    sys.stdout.write(
+        "\rSimulation progress: %d%%" % (np.ceil((t / (len(time_values) - 2)) * 100))
+    )
     sys.stdout.flush()
 
 # %% Exporting solutions
 
-# Time levels at which the solutions will be exporte
+# Time levels at which the solutions will be exported
 plot_levels = [1, 5, 10, 100, 500, 800, 1000, 2000, 3000, 5000]
 
 export_sol = {
-        "analytical": {
-                "pressure": mandel_dict["pressure"][plot_levels],
-                "displacement": mandel_dict["displacement"][plot_levels]
-                },
-        "numerical": {
-                "pressure": sol["pressure"][plot_levels],
-                "displacement": sol["displacement"][plot_levels]
-                },
-        "data": {
-                "plot_levels": plot_levels,
-                "applied_load": data[pp.PARAMETERS][kw_m]["applied_load"],
-                "time_values": time_values
-                },
-        "grid": g
-        }
+    "analytical": {
+        "pressure": mandel_dict["pressure"][plot_levels],
+        "displacement": mandel_dict["displacement"][plot_levels],
+    },
+    "numerical": {
+        "pressure": sol["pressure"][plot_levels],
+        "displacement": sol["displacement"][plot_levels],
+    },
+    "data": {
+        "plot_levels": plot_levels,
+        "applied_load": data[pp.PARAMETERS][kw_m]["applied_load"],
+        "time_values": time_values,
+    },
+    "grid": g,
+}
 
 f = open("results.pkl", "wb")  # open pickle
-pickle.dump(export_sol, f)     # dumping dictionary
-f.close()                      # closing pickle
+pickle.dump(export_sol, f)  # dumping dictionary
+f.close()  # closing pickle
