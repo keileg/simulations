@@ -6,16 +6,14 @@ class Data(object):
     """ Data class for copuled flow and temperature transport.
     """
 
-    def __init__(self, num_fracs, mesh_args):
+    def __init__(self, mesh_args):
         """
         Parameters:
-        num_fracs (int): Number of fractures to include in the model
-        param (dictionary): Dictionary containing paramters.
+        mesh_args(dictionary): Dictionary containing meshing parameters.
         """
         self.gb = None
         self.domain = None
         self.mesh_args = mesh_args
-        self.num_fracs = num_fracs
 
         self.tol = 1e-3
         self.flow_keyword = "flow"
@@ -37,28 +35,10 @@ class Data(object):
     # ------------------------------------------------------------------------ #
 
     def create_gb(self):
-        """ Load the pickled grid bucket
+        """ Load fractures and create grid bucket
         """
-        np.random.seed(1)
-
-        fracs = []
-        Lx = 2
-        Ly = 2
-        Lz = 1
-        domain = {"xmin": 0, "xmax": Lx, "ymin": 0, "ymax": Ly, "zmin": 0, "zmax": Lz}
-        cc_offset = np.linspace(0, Ly, self.num_fracs)
-        for i in range(self.num_fracs):
-            cc = np.random.rand(3) * np.array([Lx, Ly, Lz])
-            cc[1] = cc_offset[i]
-            R1 = 0.5 + 0.5 * np.random.randn(1)
-            R2 = 0.5 + 0.5 * np.random.randn(1)
-            R1 = min(R1, 1) + max(0.25, R1)
-            R2 = min(R2, 1) + max(0.25, R2)
-            angle = np.random.rand(1) * np.pi
-            strike = np.random.rand(1) * np.pi
-            dip = np.random.rand(1) * np.pi
-            fracs.append(pp.EllipticFracture(cc, R1, R2, angle, strike, dip))
-        fracture_network = pp.FractureNetwork3d(fracs, domain)
+        file_name = self.mesh_args['fracture_file_name']
+        fracture_network = pp.fracture_importer.network_3d_from_csv(file_name)
         self.fracture_network = fracture_network
         self.gb = fracture_network.mesh(self.mesh_args)
 
