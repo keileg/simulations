@@ -171,6 +171,7 @@ def viscous_flow(disc, data, time_step_param):
     out_file_name = "res_avg_c/" + time_step_param["file_name"] + ".csv"
     os.makedirs(os.path.dirname(out_file_name), exist_ok=True)
     out_file = open(out_file_name, "w")
+    out_file.write('time, average_c\n')
     viz.store_avg_concentration(gb, 0, "concentration", out_file)
 
     while t <= time_step_param["end_time"]:
