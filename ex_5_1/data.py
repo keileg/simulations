@@ -24,10 +24,10 @@ class Data(object):
         self.param = {
             "km": 10 ** -3 * pp.METER ** 2,
             "kf": 10 ** 0 * pp.METER ** 2,
-            "kn": 20 ** 0 * pp.METER ** 2,
+            "kn": 10 ** 0 * pp.METER ** 2,
             "Dm": 10 ** -4 * pp.METER ** 2 / pp.SECOND,
             "Df": 10 ** -4 * pp.METER ** 2 / pp.SECOND,
-            "Dn": 20 ** -4 * pp.METER ** 2 / pp.SECOND,
+            "Dn": 10 ** -4 * pp.METER ** 2 / pp.SECOND,
             "aperture": 0.01 * pp.METER,
             "porosity": 0.2,
         }
@@ -136,7 +136,7 @@ class Data(object):
             specific_volume = np.power(
                 self.param["aperture"], self.gb.dim_max() - g.dim
             )
-
+            param["specific_volume"] = specific_volume
             # Tangential permeability
             if g.dim == self.gb.dim_max():
                 kxx = self.param["km"] * unity
@@ -176,11 +176,12 @@ class Data(object):
 
         # Loop over edges and set coupling parameters
         for e, d in self.gb.edges():
-            # Get lower dimensional grid
-            g_l = self.gb.nodes_of_edge(e)[0]
+            # Get higher dimensional grid
+            g_h = self.gb.nodes_of_edge(e)[1]
+            param_h = self.gb.node_props(g_h, pp.PARAMETERS)
             mg = d["mortar_grid"]
-
-            kn = self.param["kn"] * np.ones(mg.num_cells) / self.param["aperture"]
+            specific_volume_h = np.ones(mg.num_cells) * param_h[keyword]["specific_volume"]
+            kn = self.param["kn"] * specific_volume_h / (self.param["aperture"] / 2)
             param = {"normal_diffusivity": kn}
             pp.initialize_data(e, d, keyword, param)
 
@@ -202,7 +203,7 @@ class Data(object):
             specific_volume = np.power(
                 self.param["aperture"], self.gb.dim_max() - g.dim
             )
-
+            param["specific_volume"] = specific_volume
             # Tangential diffusivity
             if g.dim == 3:
                 kxx = self.param["Dm"] * unity
@@ -241,9 +242,11 @@ class Data(object):
 
         # Normal diffusivity
         for e, d in self.gb.edges():
-            g_l = self.gb.nodes_of_edge(e)[0]
+            # Get higher dimensional grid
+            g_h = self.gb.nodes_of_edge(e)[1]
+            param_h = self.gb.node_props(g_h, pp.PARAMETERS)
             mg = d["mortar_grid"]
-
-            dn = self.param["Dn"] * np.ones(mg.num_cells) / self.param["aperture"]
+            specific_volume_h = np.ones(mg.num_cells) * param_h[keyword]["specific_volume"]
+            dn = self.param["Dn"] * specific_volume_h / (self.param["aperture"] / 2)
             param = {"normal_diffusivity": dn}
             pp.initialize_data(e, d, keyword, param)

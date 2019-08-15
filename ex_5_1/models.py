@@ -120,7 +120,6 @@ def viscous_flow(disc, data, time_step_param):
         + theta * (upwind(c, lam, q) + diffusive(c, lam_c))
         + (1 - theta) * (upwind(c0, lam0, q0) + (1 - theta) * diffusive(c0, lam_c0))
     )
-
     # Define ad variables
     print("Solve for initial condition")
     # We solve for inital pressure and mortar flux by fixing the temperature

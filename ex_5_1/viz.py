@@ -19,7 +19,7 @@ def store_avg_concentration(gb, t, var_name, out_file):
     area = 0
     concentration = 0
     for g, d in gb:
-        if g.dim==(gb.dim_max - 1):
+        if g.dim==(gb.dim_max() - 1):
             concentration += np.sum(d[pp.STATE][var_name] * g.cell_volumes)
             area += np.sum(g.cell_volumes)
 
