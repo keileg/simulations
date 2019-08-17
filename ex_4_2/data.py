@@ -80,7 +80,7 @@ def set_physical_parameters(
     # alpha_biot        -               Biot's coefficient
     # mu_f              Pa s            Dynamic viscosity
     # S_m               Pa^{-1}         Specific storage
-    # K_u               K_u             Undrained bulk modulus
+    # K_u               Pa              Undrained bulk modulus
     # B                 -               Skempton's coefficient
     # nu_u              -               Undrained poisson coefficient
     # c_f               m^2 s^{-1}      Fluid diffusivity
