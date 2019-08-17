@@ -17,7 +17,7 @@ paper.
 
 This subfolder contains the following files:
 
-main.py:	          Main runscript used to run the example.
+main.py:	    Main runscript used to run the example.
 analytical.py       Generate exact data from the analytical solution.
 create_grid.py      Create the grid for a given mesh and domain sizes.
 data.py             Utility-function for parameter declaration/assignment.
