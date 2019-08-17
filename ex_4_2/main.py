@@ -16,7 +16,7 @@ import create_grid
 import data
 import discretization
 import solve
-import viz
+import export_results
 
 # Constructing the grid
 mesh_size = 2.0  # [m]
@@ -65,7 +65,7 @@ assembler = discretization.discretize(gb, d, kw_f, kw_m, v_f, v_m)
 sol = solve.solve_mandel(gb, d, kw_f, kw_m, v_f, v_m, assembler, bc_dict)
 
 # Export results
-# Speciy the times you wish to export the solutions. Note that this should
+# Specify the times you wish to export the solutions. Note that this should
 # be in accordance with the "time_parameters" dictionary
 plot_times = [10, 50, 100, 1000, 5000, 8000, 10000, 20000, 30000, 50000]
-viz.generate_csv(gb, d, kw_f, kw_m, v_f, v_m, plot_times, sol, exact_data)
+export_results.generate_csv(gb, d, kw_f, kw_m, v_f, v_m, plot_times, sol, exact_data)
