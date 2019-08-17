@@ -10,10 +10,7 @@ Institution: Porous Media Group [https://pmg.w.uib.no/]
 # Importing modules
 import porepy as pp
 
-from porepy.utils.derived_discretizations.implicit_euler import (
-    ImplicitMpfa,
-    ImplicitMassMatrix,
-)
+from porepy.utils.derived_discretizations.implicit_euler import ImplicitMassMatrix
 
 # Function declaration
 def discretize(
@@ -41,7 +38,7 @@ def discretize(
 
     # The Mpfa discretization assumes unit viscosity. Hence we need to
     # overwrite the class to include it.
-    class ImplicitMPFA(ImplicitMpfa):
+    class ImplicitMpfa(pp.Mpfa):
         def assemble_matrix_rhs(self, g, d):
             """
             Overwrite MPFA method to be consistent with Biot's
@@ -82,7 +79,7 @@ def discretize(
         v_0: {term_00: pp.Mpsa(kw_m)},
         v_1: {
             term_11_0: ImplicitMassMatrix(kw_f, v_1),
-            term_11_1: ImplicitMPFA(kw_f),
+            term_11_1: ImplicitMpfa(kw_f),
             term_11_2: pp.BiotStabilization(kw_f, v_1),
         },
         v_0 + "_" + v_1: {term_01: pp.GradP(kw_m)},
