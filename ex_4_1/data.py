@@ -9,25 +9,27 @@ def add_data(gb, flow_dir, tol):
 
         is_fv = issubclass(type(d["discr"]["scheme"]), pp.FVElliptic)
 
-        # set the permeability
-        if g.dim == 2:
-            kxx = np.ones(g.num_cells)
-            if is_fv:
-                perm = pp.SecondOrderTensor(3, kxx=kxx)
-            else:
-                perm = pp.SecondOrderTensor(g.dim, kxx=kxx, kyy=kxx, kzz=1)
-        elif g.dim == 1:
-            if d["is_low"]:
-                kxx = 1e-4*np.ones(g.num_cells)
-            else:
-                kxx = 1e4*np.ones(g.num_cells)
-            if is_fv:
-                perm = pp.SecondOrderTensor(3, kxx=kxx)
-            else:
-                perm = pp.SecondOrderTensor(g.dim, kxx=kxx, kyy=1, kzz=1)
-
         # Assign apertures
         aperture = np.power(1e-4, 2-g.dim) * np.ones(g.num_cells)
+
+        # set the permeability
+        if g.dim == 2:
+            kxx = aperture
+            if is_fv:
+                perm = pp.SecondOrderTensor(kxx=kxx)
+            else:
+                perm = pp.SecondOrderTensor(kxx=kxx, kyy=kxx, kzz=1)
+        elif g.dim == 1:
+            if d["is_low"]:
+                kxx = 1e-4 * aperture
+            else:
+                kxx = 1e4 * aperture
+            if is_fv:
+                perm = pp.SecondOrderTensor(kxx=kxx)
+            else:
+                perm = pp.SecondOrderTensor(kxx=kxx, kyy=1, kzz=1)
+        elif g.dim == 0:
+            perm = None
 
         # Boundaries
         b_faces = g.tags["domain_boundary_faces"].nonzero()[0]
@@ -55,7 +57,6 @@ def add_data(gb, flow_dir, tol):
 
         specified_parameters = {
             "second_order_tensor": perm,
-            "aperture": aperture,
             "bc": bc,
             "bc_values": bc_val,
         }
@@ -76,6 +77,9 @@ def add_data(gb, flow_dir, tol):
                 kxx = 1e4
 
         mg = d["mortar_grid"]
-        kn = 2 * kxx * np.ones(mg.num_cells) / 1e-4
+
+        aperture_h = np.power(1e-4, 2-gh.dim)
+        kn = 2 * kxx * np.ones(mg.num_cells) / 1e-4 * aperture_h
+
         d[pp.PARAMETERS] = pp.Parameters(mg, "flow", {"normal_diffusivity": kn})
         d[pp.DISCRETIZATION_MATRICES] = {"flow": {}}
