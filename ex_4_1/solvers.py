@@ -46,37 +46,35 @@ def run_flow(gb, partition, folder):
             }
         }
 
-    assembler = pp.Assembler()
+    assembler = pp.Assembler(gb, active_variables=[grid_variable, mortar_variable])
+    assembler.discretize()
 
     # Assemble the linear system, using the information stored in the GridBucket
-    A, b, block_dof, full_dof = assembler.assemble_matrix_rhs(
-        gb, active_variables=[grid_variable, mortar_variable]
-    )
+    A, b = assembler.assemble_matrix_rhs()
 
     x = sps.linalg.spsolve(A, b)
-    assembler.distribute_variable(gb, x, block_dof, full_dof)
+    assembler.distribute_variable(x)
     for g, d in gb:
         discr = d[pp.DISCRETIZATION][grid_variable][diffusion_term]
-        d["pressure"] = discr.extract_pressure(g, d[grid_variable], d)
+        d[pp.STATE]["pressure"] = discr.extract_pressure(g, d[pp.STATE][grid_variable], d)
 
     _export_flow(gb, partition, folder)
-    return A, b, block_dof, full_dof
 
 # ------------------------------------------------------------------------------#
 
 def _export_flow(gb, partition, folder):
 
     for g, d in gb:
-        d["is_low"] = d["is_low"] * np.ones(g.num_cells)
-        d["frac_num"] = d["frac_num"] * np.ones(g.num_cells)
+        d[pp.STATE]["is_low"] = d["is_low"] * np.ones(g.num_cells)
+        d[pp.STATE]["frac_num"] = d["frac_num"] * np.ones(g.num_cells)
 
     # in the case of partition
     for g, d in gb:
         if g.dim == 2 and partition:
             g_old, subdiv = partition[g]
-            d["pressure"] = d["pressure"][subdiv]
-            d["is_low"] = d["is_low"][subdiv]
-            d["frac_num"] = d["frac_num"][subdiv]
+            d[pp.STATE]["pressure"] = d[pp.STATE]["pressure"][subdiv]
+            d[pp.STATE]["is_low"] = d[pp.STATE]["is_low"][subdiv]
+            d[pp.STATE]["frac_num"] = d[pp.STATE]["frac_num"][subdiv]
             gb.update_nodes({g: g_old})
             break
 
